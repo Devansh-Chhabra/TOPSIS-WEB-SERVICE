@@ -137,7 +137,7 @@ with col2:
 
 # Step 3: Destination
 st.subheader("3. Send Results")
-email = st.text_input("Email ID", placeholder="example@thapar.edu", help="The results will be sent to this address")
+email = st.text_input("Email ID", placeholder="example@mail.com", help="The results will be sent to this address")
 
 # Submit Button (Centered logic visually)
 st.write("") # Add a little space
