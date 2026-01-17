@@ -11,14 +11,14 @@ from sklearn.preprocessing import LabelEncoder
 load_dotenv()
 
 # --- Page Config ---
-st.set_page_config(page_title="Topsis Calculator", page_icon="📊")
+st.set_page_config(
+    page_title="Topsis Web Service",
+    page_icon="📊",
+    layout="centered"
+)
 
-# --- Helper Functions ---
+# --- Helper Functions (Same as before) ---
 def get_secret(key):
-    """
-    Tries to get a secret from os.environ (local .env), 
-    and falls back to st.secrets (Streamlit Cloud).
-    """
     value = os.getenv(key)
     if value is None:
         try:
@@ -28,87 +28,66 @@ def get_secret(key):
     return value
 
 def send_email(user_email, result_csv_string):
-    # 1. Get Credentials safely
     sender_email = get_secret("MAIL_USERNAME")
     sender_password = get_secret("MAIL_PASSWORD")
 
     if not sender_email or not sender_password:
         raise ValueError("Email credentials not found. Check your .env file or Streamlit Secrets.")
     
-    # 2. Construct Email
     msg = EmailMessage()
     msg['Subject'] = 'Your TOPSIS Result is Ready'
     msg['From'] = sender_email
     msg['To'] = user_email
     msg.set_content('Hello,\n\nPlease find attached the result file for your TOPSIS calculation.\n\nBest,\nDevansh')
 
-    # 3. Attach CSV
     msg.add_attachment(result_csv_string.encode('utf-8'), 
                        maintype='text', 
                        subtype='csv', 
                        filename='result.csv')
 
-    # 4. Send
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(sender_email, sender_password)
         smtp.send_message(msg)
 
 def run_topsis(df, weights_str, impacts_str):
-    # --- Step 1: Validation & Preprocessing (From your topsis.py) ---
-    
-    # Check 1: Number of Columns must be >= 3
     if df.shape[1] < 3:
         raise ValueError("Input file must contain 3 or more columns.")
 
-    # Check 2: Weights Format
     try:
         weights = [float(w) for w in weights_str.split(',')]
     except ValueError:
         raise ValueError("Incorrect Weight Format. Correct format: '1,2,3'")
 
-    # Check 3: Impacts Format
     impacts = impacts_str.split(',')
     if not all(i in ['+', '-'] for i in impacts):
         raise ValueError("Incorrect Impact Format. Correct format: '+,-,+'")
 
-    # Check 4: Non-Numeric Values (Your Encoding Logic)
-    # We work on a copy to avoid modifying the uploaded file in place before we are ready
     df_processed = df.copy()
     
-    # Iterate over criteria columns (skipping the first one)
     for col in df_processed.columns[1:]:
         if not pd.api.types.is_numeric_dtype(df_processed[col]):
             try:
                 le = LabelEncoder()
                 df_processed[col] = le.fit_transform(df_processed[col])
-                # We can log this to console or UI if needed
-                # st.info(f"Encoded non-numeric column: {col}") 
             except Exception:
                 raise ValueError(f"Column '{col}' contains non-numeric values that could not be encoded.")
 
-    # Prepare data matrix
     data = df_processed.iloc[:, 1:].values.astype(float)
-
-    # Check 5: Dimension Matching
     num_cols = data.shape[1]
+    
     if len(weights) != num_cols:
         raise ValueError(f"Number of weights ({len(weights)}) does not match number of criteria columns ({num_cols}).")
     if len(impacts) != num_cols:
         raise ValueError(f"Number of impacts ({len(impacts)}) does not match number of criteria columns ({num_cols}).")
 
-    # --- Step 2: Calculation (From your topsis.py) ---
-
-    # 1. Normalization
+    # TOPSIS Algorithm
     rss = np.sqrt(np.sum(data**2, axis=0))
     if (rss == 0).any():
         raise ValueError("One of the columns contains only 0's, Normalization cannot be performed.")
     
     norm_matrix = data / rss
-
-    # 2. Weighted Normalized Matrix
     weighted_mat = norm_matrix * weights
 
-    # 3. Ideal Best and Ideal Worst
     ideal_best = []
     ideal_worst = []
     for i in range(len(impacts)):
@@ -122,59 +101,67 @@ def run_topsis(df, weights_str, impacts_str):
     ideal_best = np.array(ideal_best)
     ideal_worst = np.array(ideal_worst)
 
-    # 4. Euclidean Distance
     dist_best = np.sqrt(np.sum((weighted_mat - ideal_best)**2, axis=1))
     dist_worst = np.sqrt(np.sum((weighted_mat - ideal_worst)**2, axis=1))
 
-    # 5. Topsis Score
     total_dist = dist_best + dist_worst
-    # Handle division by zero safely
     score = np.divide(dist_worst, total_dist, out=np.zeros_like(dist_worst), where=total_dist!=0)
     score = np.round(score, 5)
 
-    # --- Step 3: Result Formatting ---
     df['Topsis Score'] = score
     df['Rank'] = df['Topsis Score'].rank(ascending=False).astype(int)
     
     return df
 
-# --- UI Layout ---
+# --- UI Layout (IMPROVED) ---
+
 st.title("📊 TOPSIS Web Service")
-st.markdown("Upload your data, set parameters, and get the results emailed to you.")
+st.markdown("""
+This service calculates the **TOPSIS Score** and **Rank** for your dataset.
+Upload your CSV file, define the criteria, and receive the results via email.
+""")
+st.divider()
 
-# Form Input
+# Step 1: Upload
+st.subheader("1. Upload Data")
+uploaded_file = st.file_uploader("Choose a CSV file", type="csv", help="Ensure the first column is the object name (e.g., M1, M2).")
+
+# Step 2: Parameters (Side-by-Side for cleaner look)
+st.subheader("2. Set Parameters")
 col1, col2 = st.columns(2)
+
 with col1:
-    uploaded_file = st.file_uploader("Upload CSV File", type="csv")
+    weights = st.text_input("Weights", placeholder="e.g., 1,1,1,2", help="Separate values with commas")
 with col2:
-    email = st.text_input("Email ID", placeholder="example@thapar.edu")
+    impacts = st.text_input("Impacts", placeholder="e.g., +,+,-,+", help="Use '+' for beneficial, '-' for non-beneficial")
 
-weights = st.text_input("Weights (comma separated)", placeholder="1,1,1,1")
-impacts = st.text_input("Impacts (comma separated)", placeholder="+,+,-,+")
+# Step 3: Destination
+st.subheader("3. Send Results")
+email = st.text_input("Email ID", placeholder="example@thapar.edu", help="The results will be sent to this address")
 
-# Submit Button
-if st.button("Calculate & Email"):
+# Submit Button (Centered logic visually)
+st.write("") # Add a little space
+if st.button("🚀 Calculate & Email Result", type="primary", use_container_width=True):
     if uploaded_file and weights and impacts and email:
         try:
-            # Read CSV
             df = pd.read_csv(uploaded_file)
             
-            # Calculate
-            result_df = run_topsis(df, weights, impacts)
+            with st.spinner("Running TOPSIS Algorithm..."):
+                result_df = run_topsis(df, weights, impacts)
             
-            # Convert to CSV string
-            csv_string = result_df.to_csv(index=False)
-            
-            # Send Email
             with st.spinner("Sending Email..."):
+                csv_string = result_df.to_csv(index=False)
                 send_email(email, csv_string)
             
-            st.success(f"Success! Result sent to {email}")
-            st.dataframe(result_df)  # Show preview
+            st.success(f"✅ Success! Results have been sent to **{email}**")
+            
+            # Show Preview
+            st.write("### Result Preview")
+            st.dataframe(result_df.head(), use_container_width=True)
 
         except ValueError as ve:
-            st.error(f"Validation Error: {ve}")
+            st.error(f"❌ Validation Error: {ve}")
         except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
+            st.error(f"❌ An error occurred: {e}")
     else:
-        st.warning("Please fill in all fields.")
+        st.warning("⚠️ Please fill in all fields before calculating.")
