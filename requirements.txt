@@ -3,3 +3,4 @@ pandas
 numpy
 secure-smtplib
 python-dotenv
+scikit-learn
