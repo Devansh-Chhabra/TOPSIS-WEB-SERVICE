@@ -232,8 +232,15 @@ with st.container():
 
     st.divider()
 
-    # Submit Button
-    if st.button("🚀 Run Analysis & Email"):
+    # --- CENTERED BUTTON LOGIC ---
+    # We use 3 columns: Left (empty), Middle (Button), Right (empty)
+    # The middle column is 2x wider than sides to make the button substantial but centered
+    c1, c2, c3 = st.columns([1, 2, 1])
+    
+    with c2:
+        run_pressed = st.button("🚀 Run Analysis & Email", use_container_width=True)
+
+    if run_pressed:
         if uploaded_file and weights and impacts and email:
             try:
                 # Progress Bar Animation
