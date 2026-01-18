@@ -6,18 +6,102 @@ import os
 from email.message import EmailMessage
 from dotenv import load_dotenv
 from sklearn.preprocessing import LabelEncoder
+import time
 
-# --- Load Environment Variables (for local .env file) ---
+# --- Load Environment Variables ---
 load_dotenv()
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="Topsis Web Service",
-    page_icon="📊",
+    page_title="Topsis Master",
+    page_icon="⚡",
     layout="centered"
 )
 
-# --- Helper Functions (Same as before) ---
+# --- 🎨 Custom CSS & Animations ---
+st.markdown("""
+<style>
+    /* Import Google Font */
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+    /* General Body Styles */
+    .stApp {
+        background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+        font-family: 'Poppins', sans-serif;
+        color: white;
+    }
+    
+    /* Text Color Override */
+    h1, h2, h3, h4, h5, p, div {
+        color: #ffffff !important;
+    }
+
+    /* Input Fields Styling */
+    .stTextInput > div > div > input {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 10px;
+    }
+    .stTextInput > div > div > input:focus {
+        border-color: #00d2ff;
+        box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
+    }
+
+    /* File Uploader Styling */
+    section[data-testid="stFileUploader"] {
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        padding: 20px;
+    }
+
+    /* Button Styling */
+    .stButton > button {
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 30px;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        transition: all 0.3s ease;
+        width: 100%;
+        box-shadow: 0 5px 15px rgba(0, 210, 255, 0.4);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 210, 255, 0.6);
+        background: linear-gradient(90deg, #3a7bd5 0%, #00d2ff 100%);
+    }
+
+    /* Divider */
+    hr {
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Card-like container logic (optional visual tweak) */
+    div.block-container {
+        padding-top: 2rem;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+        0% { opacity: 0; transform: translateY(20px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-enter {
+        animation: fadeIn 0.8s ease-out forwards;
+    }
+
+</style>
+""", unsafe_allow_html=True)
+
+# --- Helper Functions ---
 def get_secret(key):
     value = os.getenv(key)
     if value is None:
@@ -35,15 +119,15 @@ def send_email(user_email, result_csv_string):
         raise ValueError("Email credentials not found. Check your .env file or Streamlit Secrets.")
     
     msg = EmailMessage()
-    msg['Subject'] = 'Your TOPSIS Result is Ready'
+    msg['Subject'] = 'Your TOPSIS Analysis Result'
     msg['From'] = sender_email
     msg['To'] = user_email
-    msg.set_content('Hello,\n\nPlease find attached the result file for your TOPSIS calculation.\n\nBest,\nDevansh')
+    msg.set_content('Hello,\n\nSuccess! Attached is the ranked result file for your TOPSIS calculation.\n\nBest Regards,\nTOPSIS Service')
 
     msg.add_attachment(result_csv_string.encode('utf-8'), 
                        maintype='text', 
                        subtype='csv', 
-                       filename='result.csv')
+                       filename='topsis_result.csv')
 
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(sender_email, sender_password)
@@ -64,6 +148,7 @@ def run_topsis(df, weights_str, impacts_str):
 
     df_processed = df.copy()
     
+    # Preprocessing
     for col in df_processed.columns[1:]:
         if not pd.api.types.is_numeric_dtype(df_processed[col]):
             try:
@@ -80,7 +165,7 @@ def run_topsis(df, weights_str, impacts_str):
     if len(impacts) != num_cols:
         raise ValueError(f"Number of impacts ({len(impacts)}) does not match number of criteria columns ({num_cols}).")
 
-    # TOPSIS Algorithm
+    # TOPSIS Core Logic
     rss = np.sqrt(np.sum(data**2, axis=0))
     if (rss == 0).any():
         raise ValueError("One of the columns contains only 0's, Normalization cannot be performed.")
@@ -113,55 +198,79 @@ def run_topsis(df, weights_str, impacts_str):
     
     return df
 
-# --- UI Layout (IMPROVED) ---
+# --- 🚀 UI Layout ---
 
-st.title("📊 TOPSIS Web Service")
+# Animated Header
 st.markdown("""
-This service calculates the **TOPSIS Score** and **Rank** for your dataset.
-Upload your CSV file, define the criteria, and receive the results via email.
-""")
-st.divider()
+<div class="animate-enter" style="text-align: center; margin-bottom: 30px;">
+    <h1 style="font-size: 50px; font-weight: 700; background: -webkit-linear-gradient(#00d2ff, #3a7bd5); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">TOPSIS Master</h1>
+    <p style="font-size: 18px; color: #b0c4de;">The Ultimate Decision Support System</p>
+</div>
+""", unsafe_allow_html=True)
 
-# Step 1: Upload
-st.subheader("1. Upload Data")
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv", help="Ensure the first column is the object name (e.g., M1, M2).")
+# Container for the form
+with st.container():
+    # Step 1
+    st.markdown('<h3 style="color: #00d2ff;">📂 1. Upload Data</h3>', unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("", type="csv", help="Ensure the first column is the object name")
+    
+    st.write("") # Spacer
 
-# Step 2: Parameters (Side-by-Side for cleaner look)
-st.subheader("2. Set Parameters")
-col1, col2 = st.columns(2)
+    # Step 2
+    st.markdown('<h3 style="color: #00d2ff;">⚙️ 2. Configure Parameters</h3>', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        weights = st.text_input("Weights (comma separated)", placeholder="e.g., 1, 1, 1, 2")
+    with col2:
+        impacts = st.text_input("Impacts (+ or -)", placeholder="e.g., +, +, -, +")
 
-with col1:
-    weights = st.text_input("Weights", placeholder="e.g., 1,1,1,2", help="Separate values with commas")
-with col2:
-    impacts = st.text_input("Impacts", placeholder="e.g., +,+,-,+", help="Use '+' for beneficial, '-' for non-beneficial")
+    st.write("") # Spacer
 
-# Step 3: Destination
-st.subheader("3. Send Results")
-email = st.text_input("Email ID", placeholder="example@mail.com", help="The results will be sent to this address")
+    # Step 3
+    st.markdown('<h3 style="color: #00d2ff;">📧 3. Recipient</h3>', unsafe_allow_html=True)
+    email = st.text_input("Email Address", placeholder="name@example.com")
 
-# Submit Button (Centered logic visually)
-st.write("") # Add a little space
-if st.button("🚀 Calculate & Email Result", type="primary", use_container_width=True):
-    if uploaded_file and weights and impacts and email:
-        try:
-            df = pd.read_csv(uploaded_file)
-            
-            with st.spinner("Running TOPSIS Algorithm..."):
+    st.divider()
+
+    # Submit Button
+    if st.button("🚀 Run Analysis & Email"):
+        if uploaded_file and weights and impacts and email:
+            try:
+                # Progress Bar Animation
+                progress_text = "Operation in progress. Please wait."
+                my_bar = st.progress(0, text=progress_text)
+
+                for percent_complete in range(100):
+                    time.sleep(0.01)
+                    my_bar.progress(percent_complete + 1, text=progress_text)
+                
+                my_bar.empty()
+
+                df = pd.read_csv(uploaded_file)
+                
+                # Calculation
                 result_df = run_topsis(df, weights, impacts)
-            
-            with st.spinner("Sending Email..."):
+                
+                # Email
                 csv_string = result_df.to_csv(index=False)
                 send_email(email, csv_string)
-            
-            st.success(f"✅ Success! Results have been sent to **{email}**")
-            
-            # Show Preview
-            st.write("### Result Preview")
-            st.dataframe(result_df.head(), use_container_width=True)
+                
+                # Success Message
+                st.balloons()
+                st.markdown(f"""
+                <div style="background-color: rgba(0, 255, 127, 0.2); padding: 20px; border-radius: 10px; border: 1px solid #00ff7f; text-align: center;">
+                    <h3 style="color: #00ff7f; margin:0;">✅ Results Sent Successfully!</h3>
+                    <p style="margin-top: 10px;">Check your inbox at <strong>{email}</strong></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Preview
+                st.write("### 📊 Result Preview")
+                st.dataframe(result_df.head(), use_container_width=True)
 
-        except ValueError as ve:
-            st.error(f"❌ Validation Error: {ve}")
-        except Exception as e:
-            st.error(f"❌ An error occurred: {e}")
-    else:
-        st.warning("⚠️ Please fill in all fields before calculating.")
+            except ValueError as ve:
+                st.error(f"❌ Input Error: {ve}")
+            except Exception as e:
+                st.error(f"❌ System Error: {e}")
+        else:
+            st.warning("⚠️ Please fill in all fields to proceed.")
