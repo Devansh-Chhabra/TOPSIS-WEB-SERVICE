@@ -10,6 +10,8 @@ Users can upload a CSV file, specify weights and impacts, and receive the detail
 
 🔗 *Live Demo:* [Click here to view](https://topsis-web-service.streamlit.app/)
 
+🔗 *My PyPi Package:* [Click here to view](https://github.com/Devansh-Chhabra/TOPSIS-PyPi-Package)
+
 ---
 
 ## ✨ Features
